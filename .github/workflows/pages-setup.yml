@@ -1,0 +1,21 @@
+name: Pages setup probe
+on:
+  push:
+    branches: [pages-setup]
+permissions:
+  pages: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show current Pages config
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/${{ github.repository }}/pages || true
+      - name: Switch Pages source to GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT repos/${{ github.repository }}/pages -f build_type=workflow && echo SWITCH_OK || echo SWITCH_FAILED
+          gh api repos/${{ github.repository }}/pages --jq '.build_type' || true
