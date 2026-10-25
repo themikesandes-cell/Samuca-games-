@@ -8,6 +8,22 @@ import { ASSET_BASE } from '../assets';
 /** soundtrack file in public/assets; if it fails to load the built-in chiptune plays instead */
 const TRACK_URL = `${ASSET_BASE}music.mp3`;
 
+/** 0.1 s of silence (8-bit mono WAV) used to unlock iOS media playback */
+const SILENT_WAV = (() => {
+  const n = 800;
+  const bytes = new Uint8Array(44 + n);
+  const v = new DataView(bytes.buffer);
+  const str = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  str(36, 'data'); v.setUint32(40, n, true);
+  bytes.fill(128, 44);
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return `data:audio/wav;base64,${btoa(bin)}`;
+})();
+
 type Wave = OscillatorType;
 
 const STEP = 60 / 132 / 4; // 16th note at 132 bpm
@@ -78,6 +94,7 @@ class AudioEngine {
   /** Must be called from a user gesture. Safe to call many times. */
   unlock(): void {
     try {
+      this.forcePlaybackSession();
       if (!this.ctx) {
         const AC: typeof AudioContext | undefined =
           window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -105,10 +122,40 @@ class AudioEngine {
         src.connect(this.ctx.destination);
         src.start(0);
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state !== 'running') void this.ctx.resume();
       this.loadTrack();
     } catch {
       this.ctx = null;
+    }
+  }
+
+  private sessionForced = false;
+
+  /**
+   * iPhone: Web Audio is muted by the silent (ring/mute) switch unless the page uses the
+   * "playback" audio session. Safari 16.4+ exposes navigator.audioSession; older iOS needs
+   * a looping silent <audio> element started inside a gesture to switch the category.
+   */
+  private forcePlaybackSession(): void {
+    if (this.sessionForced) return;
+    this.sessionForced = true;
+    try {
+      const nav = navigator as Navigator & { audioSession?: { type: string } };
+      if (nav.audioSession) nav.audioSession.type = 'playback';
+    } catch {
+      /* ignore */
+    }
+    try {
+      const el = document.createElement('audio');
+      el.setAttribute('x-webkit-airplay', 'deny');
+      el.preload = 'auto';
+      el.loop = true;
+      el.src = SILENT_WAV;
+      el.volume = 0.01;
+      const p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(() => (this.sessionForced = false));
+    } catch {
+      this.sessionForced = false;
     }
   }
 
