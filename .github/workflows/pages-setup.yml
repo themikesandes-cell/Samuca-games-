@@ -9,13 +9,12 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Show current Pages config
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api repos/${{ github.repository }}/pages || true
       - name: Switch Pages source to GitHub Actions
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api -X PUT repos/${{ github.repository }}/pages -f build_type=workflow && echo SWITCH_OK || echo SWITCH_FAILED
-          gh api repos/${{ github.repository }}/pages --jq '.build_type' || true
+          before=$(gh api repos/${{ github.repository }}/pages --jq '.build_type' 2>&1 || true)
+          echo "::notice::before=$before"
+          out=$(gh api -X PUT repos/${{ github.repository }}/pages -f build_type=workflow 2>&1) && echo "::notice::SWITCH_OK" || echo "::notice::SWITCH_FAILED $out"
+          after=$(gh api repos/${{ github.repository }}/pages --jq '.build_type' 2>&1 || true)
+          echo "::notice::after=$after"
