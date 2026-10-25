@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_BASE, ATLAS, IMAGES, PLAYER_ANIMS, SPRITESHEETS } from '../assets';
 import { bridge } from '../events';
+import { audio } from '../systems/Audio';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -8,6 +9,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
+    void audio.prefetch().catch(() => undefined);
     this.load.setPath(ASSET_BASE);
     for (const [key, file] of Object.entries(IMAGES)) this.load.image(key, file);
     for (const [key, s] of Object.entries(SPRITESHEETS)) {

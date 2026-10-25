@@ -297,7 +297,7 @@ export class RunScene extends Phaser.Scene {
     this.botBusy.clear();
     this.inputLockUntil = this.time.now + 220; // the tap on JOGAR must not jump
     audio.stopMusic();
-    if (audio.musicOn) audio.startMusic();
+    if (audio.musicOn) audio.startMusic(true);
     this.setState('playing');
     this.emitHud(true);
   }

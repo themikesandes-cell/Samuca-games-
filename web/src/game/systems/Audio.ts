@@ -3,6 +3,10 @@
 // resumed inside a user gesture, as Safari on iPhone requires.
 
 import { storage } from '../storage';
+import { ASSET_BASE } from '../assets';
+
+/** soundtrack file in public/assets; if it fails to load the built-in chiptune plays instead */
+const TRACK_URL = `${ASSET_BASE}music.mp3`;
 
 type Wave = OscillatorType;
 
@@ -49,6 +53,24 @@ class AudioEngine {
   private nextTime = 0;
   private step = 0;
   private playing = false;
+  private track: AudioBuffer | null = null;
+  private trackLoading = false;
+  private trackBytes: Promise<ArrayBuffer> | null = null;
+
+  /** download the song early (no gesture needed); decoding waits for the unlock */
+  prefetch(): Promise<ArrayBuffer> {
+    if (!this.trackBytes) {
+      this.trackBytes = fetch(TRACK_URL).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))));
+      this.trackBytes.catch(() => {
+        this.trackBytes = null;
+      });
+    }
+    return this.trackBytes;
+  }
+  private trackSrc: AudioBufferSourceNode | null = null;
+  private trackGain!: GainNode;
+  private trackOffset = 0; // seconds into the song (kept across pauses)
+  private trackStartedAt = 0;
 
   musicOn = storage.getFlag('music', true);
   sfxOn = storage.getFlag('sfx', true);
@@ -67,6 +89,9 @@ class AudioEngine {
         this.musicGain = this.ctx.createGain();
         this.musicGain.gain.value = this.musicOn ? 0.28 : 0;
         this.musicGain.connect(this.master);
+        this.trackGain = this.ctx.createGain();
+        this.trackGain.gain.value = 2.2; // the mp3 sits under the same music on/off gain
+        this.trackGain.connect(this.musicGain);
         this.sfxGain = this.ctx.createGain();
         this.sfxGain.gain.value = this.sfxOn ? 0.55 : 0;
         this.sfxGain.connect(this.master);
@@ -81,6 +106,7 @@ class AudioEngine {
         src.start(0);
       }
       if (this.ctx.state === 'suspended') void this.ctx.resume();
+      this.loadTrack();
     } catch {
       this.ctx = null;
     }
@@ -111,18 +137,80 @@ class AudioEngine {
   }
 
   // ---------------------------------------------------------------- music
-  startMusic(): void {
+  private loadTrack(): void {
+    if (this.track || this.trackLoading || !this.ctx) return;
+    this.trackLoading = true;
+    const ctx = this.ctx;
+    (this.trackBytes ?? this.prefetch())
+      .then((bytes) => bytes.slice(0))
+      .then(
+        (data) =>
+          new Promise<AudioBuffer>((resolve, reject) => {
+            // callback form for older Safari
+            const p = ctx.decodeAudioData(data, resolve, reject);
+            if (p && typeof p.then === 'function') p.then(resolve, reject);
+          }),
+      )
+      .then((buf) => {
+        this.track = buf;
+        // song arrived while the chiptune fallback was playing: switch over
+        if (this.playing && this.timer !== null) {
+          this.stopChip();
+          this.playTrack();
+        }
+      })
+      .catch(() => {
+        /* keep the chiptune */
+      })
+      .finally(() => {
+        this.trackLoading = false;
+      });
+  }
+
+  /** `restart` = play the song from the beginning (new run); otherwise continue after a pause */
+  startMusic(restart = false): void {
+    if (restart) this.trackOffset = 0;
     if (this.playing) return;
     this.playing = true;
+    if (this.track && this.ctx) {
+      this.playTrack();
+      return;
+    }
     this.step = 0;
     this.nextTime = this.ctx ? this.ctx.currentTime + 0.08 : 0;
     this.timer = window.setInterval(() => this.schedule(), 25);
   }
 
-  stopMusic(): void {
-    this.playing = false;
+  private playTrack(): void {
+    if (!this.ctx || !this.track) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.track;
+    src.loop = true;
+    src.connect(this.trackGain);
+    const offset = this.trackOffset % this.track.duration;
+    src.start(0, offset);
+    this.trackStartedAt = this.ctx.currentTime - offset;
+    this.trackSrc = src;
+  }
+
+  private stopChip(): void {
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
+  }
+
+  stopMusic(): void {
+    this.playing = false;
+    this.stopChip();
+    if (this.trackSrc && this.ctx && this.track) {
+      this.trackOffset = (this.ctx.currentTime - this.trackStartedAt) % this.track.duration;
+      try {
+        this.trackSrc.stop();
+      } catch {
+        /* already stopped */
+      }
+      this.trackSrc.disconnect();
+    }
+    this.trackSrc = null;
   }
 
   private schedule(): void {
