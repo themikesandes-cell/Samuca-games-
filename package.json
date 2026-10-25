@@ -1,0 +1,37 @@
+{
+  "name": "samuca-games",
+  "version": "1.0.0",
+  "description": "SAMUCA GAMES — CORRE, SAMUCA! Endless runner 2D em pixel art pelas ruas de São Paulo.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "art": "python3 tools/extract.py reference/samuca-spritesheet.png web/public/assets && python3 tools/art.py web/public/assets"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/themikesandes-cell/samuca-games-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/themikesandes-cell/samuca-games-/issues"
+  },
+  "homepage": "https://github.com/themikesandes-cell/samuca-games-#readme",
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "phaser": "^3.90.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  },
+  "private": true,
+  "type": "module"
+}

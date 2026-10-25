@@ -1,0 +1,63 @@
+# Builds the game (Vite + React + TypeScript + Phaser) and publishes it to GitHub Pages.
+#
+# This repository's Pages is set to "Deploy from a branch: main / (root)", so the
+# workflow writes the production build to the root of main (index.html, assets/, …)
+# and GitHub Pages serves it at https://themikesandes-cell.github.io/Samuca-games-/
+# The game's source lives in web/ and is never overwritten.
+name: Build & publish (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-publish
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Check the build output
+        run: |
+          test -f dist/index.html
+          test -f dist/assets/samuca.png
+          grep -q '/Samuca-games-/assets/' dist/index.html
+
+      - name: Publish build to the Pages root of main
+        run: |
+          rm -rf assets index.html favicon.png apple-touch-icon.png icon-512.png manifest.webmanifest
+          cp -r dist/. .
+          touch .nojekyll
+          git add -A index.html assets favicon.png apple-touch-icon.png icon-512.png manifest.webmanifest .nojekyll
+          if git diff --cached --quiet; then
+            echo "Build output unchanged — nothing to publish."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Publish game build (${GITHUB_SHA::7})"
+          git push

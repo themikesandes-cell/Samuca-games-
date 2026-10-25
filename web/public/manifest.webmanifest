@@ -1,0 +1,14 @@
+{
+  "name": "CORRE, SAMUCA! — Samuca Games",
+  "short_name": "Corre, Samuca!",
+  "start_url": "/Samuca-games-/",
+  "scope": "/Samuca-games-/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1d2450",
+  "theme_color": "#1d2450",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
